@@ -1,0 +1,41 @@
+/* Write your T-SQL query statement below */
+with rankcte as (
+    select * ,DENSE_RANK() OVER(Partition by student_id,subject order by exam_date) as ranking
+    from scores),
+    firstrank as(
+        select student_id, subject,min(ranking) as ranking from rankcte 
+        group by student_id,subject
+    ),
+    maxrank as (
+        select student_id, subject,max(ranking) as ranking from rankcte 
+        group by student_id,subject
+    ),
+    earliestscorefind as(
+        select m.student_id,m.subject, m.score as first_score from rankcte m
+        inner join firstrank mr on
+        m.student_id = mr.student_id
+        and m.subject = mr.subject
+        and m.ranking = mr.ranking
+    ),
+    latestscorefind as (
+        select m.student_id,m.subject, m.score as latest_score from rankcte m
+        inner join maxrank mr on
+        m.student_id = mr.student_id
+        and m.subject = mr.subject
+        and m.ranking = mr.ranking
+    ),
+    repeatedtest as (
+        select student_id,subject from rankcte 
+        group by student_id,subject 
+        having count(ranking) > 1
+    )
+
+select m.student_id,m.subject, first_score, l.latest_score from earliestscorefind m
+inner join latestscorefind l 
+on m.student_id = l.student_id
+and m.subject = l.subject
+where EXISTS (SELECT 1 FROM repeatedtest r 
+where m.student_id = r.student_id and m.subject = r.subject) 
+and (l.latest_score-first_score) IS NOT NULL and (l.latest_score-first_score) > 0
+
+
